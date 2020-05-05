@@ -1695,10 +1695,10 @@ public class Nimbus implements Iface, Shutdownable, DaemonCommon {
 
     private Set<List<Integer>> getOrUpdateExecutors(String topoId, StormBase base, Map<String, Object> topoConf,
                                                     StormTopology topology)
-        throws IOException, AuthorizationException, InvalidTopologyException, KeyNotFoundException {
+        throws InvalidTopologyException {
         Set<List<Integer>> executors = idToExecutors.get().get(topoId);
         if (null == executors) {
-            executors = new HashSet<>(computeExecutors(topoId, base, topoConf, topology));
+            executors = new HashSet<>(computeExecutors(base, topoConf, topology));
             idToExecutors.getAndUpdate(new Assoc<>(topoId, executors));
         }
         return executors;
@@ -2008,9 +2008,8 @@ public class Nimbus implements Iface, Shutdownable, DaemonCommon {
         return heartbeatsCache.getAliveExecutors(topoId, allExecutors, assignment, getTopologyLaunchHeartbeatTimeoutSec(topoId));
     }
 
-    private List<List<Integer>> computeExecutors(String topoId, StormBase base, Map<String, Object> topoConf,
-                                                 StormTopology topology)
-        throws KeyNotFoundException, AuthorizationException, IOException, InvalidTopologyException {
+    private List<List<Integer>> computeExecutors(StormBase base, Map<String, Object> topoConf,
+                                                 StormTopology topology) throws InvalidTopologyException {
         assert (base != null);
 
         Map<String, Integer> compToExecutors = base.get_component_executors();
@@ -2035,7 +2034,7 @@ public class Nimbus implements Iface, Shutdownable, DaemonCommon {
 
     private Map<List<Integer>, String> computeExecutorToComponent(String topoId, StormBase base,
                                                                   Map<String, Object> topoConf, StormTopology topology)
-        throws KeyNotFoundException, AuthorizationException, InvalidTopologyException, IOException {
+        throws InvalidTopologyException {
         List<List<Integer>> executors = new ArrayList<>(getOrUpdateExecutors(topoId, base, topoConf, topology));
         Map<Integer, String> taskToComponent = StormCommon.stormTaskInfo(topology, topoConf);
         Map<List<Integer>, String> ret = new HashMap<>();
@@ -2614,7 +2613,7 @@ public class Nimbus implements Iface, Shutdownable, DaemonCommon {
 
     private void startTopology(String topoName, String topoId, TopologyStatus initStatus, String owner,
                                String principal, Map<String, Object> topoConf, StormTopology stormTopology)
-        throws KeyNotFoundException, AuthorizationException, IOException, InvalidTopologyException {
+        throws InvalidTopologyException {
         assert (TopologyStatus.ACTIVE == initStatus || TopologyStatus.INACTIVE == initStatus);
         Map<String, Integer> numExecutors = new HashMap<>();
         StormTopology topology = StormCommon.systemTopology(topoConf, stormTopology);
@@ -2637,7 +2636,7 @@ public class Nimbus implements Iface, Shutdownable, DaemonCommon {
         IStormClusterState state = stormClusterState;
         state.activateStorm(topoId, base, topoConf);
         idToExecutors.getAndUpdate(new Assoc<>(topoId,
-            new HashSet<>(computeExecutors(topoId, base, topoConf, stormTopology))));
+            new HashSet<>(computeExecutors(base, topoConf, stormTopology))));
         notifyTopologyActionListener(topoName, "activate");
     }
 

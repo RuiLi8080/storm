@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.TreeSet;
 import org.apache.storm.Config;
+import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.scheduler.Cluster;
 import org.apache.storm.scheduler.Component;
 import org.apache.storm.scheduler.ExecutorDetails;
@@ -38,7 +39,7 @@ public class DefaultResourceAwareStrategy extends BaseResourceAwareStrategy impl
     private static final Logger LOG = LoggerFactory.getLogger(DefaultResourceAwareStrategy.class);
 
     @Override
-    public SchedulingResult schedule(Cluster cluster, TopologyDetails td) {
+    public SchedulingResult schedule(Cluster cluster, TopologyDetails td) throws InvalidTopologyException {
         prepare(cluster);
         if (nodes.getNodes().size() <= 0) {
             LOG.warn("No available nodes to schedule tasks on!");
@@ -59,6 +60,7 @@ public class DefaultResourceAwareStrategy extends BaseResourceAwareStrategy impl
 
         //order executors to be scheduled
         List<ExecutorDetails> orderedExecutors = this.orderExecutors(td, unassignedExecutors);
+        LOG.info("Scheduled executors: {}", orderedExecutors);
         Collection<ExecutorDetails> executorsNotScheduled = new HashSet<>(unassignedExecutors);
         List<String> favoredNodesIds = makeHostToNodeIds((List<String>) td.getConf().get(Config.TOPOLOGY_SCHEDULER_FAVORED_NODES));
         List<String> unFavoredNodesIds = makeHostToNodeIds((List<String>) td.getConf().get(Config.TOPOLOGY_SCHEDULER_UNFAVORED_NODES));

@@ -399,6 +399,17 @@ public class Config extends HashMap<String, Object> {
     @IsPositiveNumber(includeZero = true)
     public static final String TOPOLOGY_ACKER_EXECUTORS = "topology.acker.executors";
     /**
+     * This option depends on using Resource Aware Scheduler.
+     *
+     * <p>
+     * By Default, Resource Aware Scheduler will only schedule topology components (spouts and bolts) first. All system components will
+     * be scheduled afterward.
+     * Enabling this option will schedule all components (both topology and system) together.
+     * </p>
+     */
+    @IsBoolean
+    public static final String TOPOLOGY_DISTRIBUTE_SYSTEM_COMPONENT_EVENLY = "topology.distribute.system.components.evenly";
+    /**
      * A list of classes implementing IEventLogger (See storm.yaml.example for exact config format). Each listed class will be routed all
      * the events sampled from emitting tuples. If there's no class provided to the option, default event logger will be initialized and
      * used unless you disable event logger executor.

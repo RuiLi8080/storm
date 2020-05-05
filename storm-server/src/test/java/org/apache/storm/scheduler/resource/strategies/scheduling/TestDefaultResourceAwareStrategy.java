@@ -19,6 +19,7 @@
 package org.apache.storm.scheduler.resource.strategies.scheduling;
 
 import org.apache.storm.daemon.nimbus.TopologyResources;
+import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.scheduler.IScheduler;
 import org.apache.storm.scheduler.resource.normalization.NormalizedResourcesExtension;
 import java.util.Collections;
@@ -478,7 +479,7 @@ public class TestDefaultResourceAwareStrategy {
      * Test whether strategy will choose correct rack
      */
     @Test
-    public void testMultipleRacks() {
+    public void testMultipleRacks() throws InvalidTopologyException {
         final Map<String, SupervisorDetails> supMap = new HashMap<>();
         final Map<String, SupervisorDetails> supMapRack0 = genSupervisors(10, 4, 0, 400, 8000);
         //generate another rack of supervisors with less resources
@@ -595,7 +596,7 @@ public class TestDefaultResourceAwareStrategy {
      * Test whether strategy will choose correct rack
      */
     @Test
-    public void testMultipleRacksWithFavoritism() {
+    public void testMultipleRacksWithFavoritism() throws InvalidTopologyException {
         final Map<String, SupervisorDetails> supMap = new HashMap<>();
         final Map<String, SupervisorDetails> supMapRack0 = genSupervisors(10, 4, 0, 400, 8000);
         //generate another rack of supervisors with less resources

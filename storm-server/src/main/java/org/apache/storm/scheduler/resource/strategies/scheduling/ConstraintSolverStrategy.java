@@ -42,7 +42,6 @@ import org.apache.storm.scheduler.resource.SchedulingStatus;
 import org.apache.storm.shade.com.google.common.annotations.VisibleForTesting;
 import org.apache.storm.utils.ObjectReader;
 import org.apache.storm.utils.Time;
-import org.apache.storm.validation.ConfigValidation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,7 +72,7 @@ public class ConstraintSolverStrategy extends BaseResourceAwareStrategy {
 
         ConstraintConfig(TopologyDetails topo) {
             // getExecutorToComponent().values() also contains system components
-            this(topo.getConf(), Sets.union(topo.getComponents().keySet(), new HashSet(topo.getExecutorToComponent().values())));
+            this(topo.getConf(), Sets.union(topo.getTopoComponents().keySet(), new HashSet(topo.getExecutorToComponent().values())));
         }
 
         ConstraintConfig(Map<String, Object> conf, Set<String> comps) {

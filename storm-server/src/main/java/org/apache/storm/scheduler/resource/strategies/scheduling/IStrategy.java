@@ -13,6 +13,8 @@
 package org.apache.storm.scheduler.resource.strategies.scheduling;
 
 import java.util.Map;
+
+import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.scheduler.Cluster;
 import org.apache.storm.scheduler.TopologyDetails;
 import org.apache.storm.scheduler.resource.SchedulingResult;
@@ -40,5 +42,5 @@ public interface IStrategy {
      * @return returns a SchedulingResult object containing SchedulingStatus object to indicate whether scheduling is
      *     successful.
      */
-    SchedulingResult schedule(Cluster schedulingState, TopologyDetails td);
+    SchedulingResult schedule(Cluster schedulingState, TopologyDetails td) throws InvalidTopologyException;
 }

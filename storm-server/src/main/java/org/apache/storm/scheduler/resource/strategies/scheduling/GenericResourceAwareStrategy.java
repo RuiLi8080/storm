@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.TreeSet;
 import org.apache.storm.Config;
+import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.scheduler.Cluster;
 import org.apache.storm.scheduler.Component;
 import org.apache.storm.scheduler.ExecutorDetails;
@@ -77,7 +78,7 @@ public class GenericResourceAwareStrategy extends BaseResourceAwareStrategy impl
     }
 
     @Override
-    public SchedulingResult schedule(Cluster cluster, TopologyDetails td) {
+    public SchedulingResult schedule(Cluster cluster, TopologyDetails td) throws InvalidTopologyException {
         prepare(cluster);
         if (nodes.getNodes().size() <= 0) {
             LOG.warn("No available nodes to schedule tasks on!");

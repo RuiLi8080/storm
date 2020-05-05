@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.storm.generated.ComponentType;
+import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.networktopography.DNSToSwitchMapping;
 import org.apache.storm.scheduler.Cluster;
 import org.apache.storm.scheduler.Component;
@@ -51,6 +52,7 @@ import org.apache.storm.scheduler.resource.normalization.NormalizedResourceOffer
 import org.apache.storm.scheduler.resource.normalization.NormalizedResourceRequest;
 import org.apache.storm.shade.com.google.common.annotations.VisibleForTesting;
 import org.apache.storm.shade.com.google.common.collect.Sets;
+import org.apache.storm.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -523,30 +525,52 @@ public abstract class BaseResourceAwareStrategy implements IStrategy {
      * @return a list of executors in sorted order
      */
     protected List<ExecutorDetails> orderExecutors(
-        TopologyDetails td, Collection<ExecutorDetails> unassignedExecutors) {
-        Map<String, Component> componentMap = td.getComponents();
-        List<ExecutorDetails> execsScheduled = new LinkedList<>();
+        TopologyDetails td, Collection<ExecutorDetails> unassignedExecutors) throws InvalidTopologyException {
 
-        Map<String, Queue<ExecutorDetails>> compToExecsToSchedule = new HashMap<>();
-        for (Component component : componentMap.values()) {
-            compToExecsToSchedule.put(component.getId(), new LinkedList<>());
-            for (ExecutorDetails exec : component.getExecs()) {
+        Map<String, Component> topoComponentMap = td.getTopoComponents();
+        Map<String, Queue<ExecutorDetails>> topoCompToExecsToSchedule = new HashMap<>();
+        for (Map.Entry<String, Component> entry : topoComponentMap.entrySet()) {
+            String compId = entry.getKey();
+            Component topoComponent = entry.getValue();
+            topoCompToExecsToSchedule.put(compId, new LinkedList<>());
+            for (ExecutorDetails exec : topoComponent.getExecs()) {
                 if (unassignedExecutors.contains(exec)) {
-                    compToExecsToSchedule.get(component.getId()).add(exec);
+                    topoCompToExecsToSchedule.get(compId).add(exec);
                 }
             }
         }
 
-        Set<Component> sortedComponents = sortComponents(componentMap);
-        sortedComponents.addAll(componentMap.values());
+        // only needed when trying to schedule system components evenly
+        Map<String, Queue<ExecutorDetails>> sysCompToExecsToSchedule = new HashMap<>();
+        if (td.isDistributeSysCompEvenly()) {
+            Map<String, Component> sysComponentMap = td.getAllComponents();
+            for (Map.Entry<String, Component> entry : sysComponentMap.entrySet()) {
+                String compId = entry.getKey();
+                Component sysComponent = entry.getValue();
+                if (Utils.isSystemId(compId)) {
+                    sysCompToExecsToSchedule.put(compId, new LinkedList<>());
+                    for (ExecutorDetails exec : sysComponent.getExecs()) {
+                        if (unassignedExecutors.contains(exec)) {
+                            sysCompToExecsToSchedule.get(compId).add(exec);
+                        }
+                    }
+                }
+            }
+            LOG.info("all executors: {}", td.getExecutorToComponent().keySet());
+            LOG.info("sys comp to schedule map: {}", sysCompToExecsToSchedule);
+        }
 
-        for (Component currComp : sortedComponents) {
+        Set<Component> sortedTopoComponents = sortComponents(topoComponentMap);
+        //sortedComponents.addAll(componentMap.values());
+
+        List<ExecutorDetails> execsScheduled = new LinkedList<>();
+        for (Component currComp : sortedTopoComponents) {
             Map<String, Component> neighbors = new HashMap<>();
             for (String compId : Sets.union(currComp.getChildren(), currComp.getParents())) {
-                neighbors.put(compId, componentMap.get(compId));
+                neighbors.put(compId, topoComponentMap.get(compId));
             }
             Set<Component> sortedNeighbors = sortNeighbors(currComp, neighbors);
-            Queue<ExecutorDetails> currCompExesToSched = compToExecsToSchedule.get(currComp.getId());
+            Queue<ExecutorDetails> currCompExesToSched = topoCompToExecsToSchedule.get(currComp.getId());
 
             boolean flag = false;
             do {
@@ -558,14 +582,27 @@ public abstract class BaseResourceAwareStrategy implements IStrategy {
 
                 for (Component neighborComp : sortedNeighbors) {
                     Queue<ExecutorDetails> neighborCompExesToSched =
-                        compToExecsToSchedule.get(neighborComp.getId());
+                        topoCompToExecsToSchedule.get(neighborComp.getId());
                     if (!neighborCompExesToSched.isEmpty()) {
                         execsScheduled.add(neighborCompExesToSched.poll());
                         flag = true;
                     }
                 }
+
+                // Attempt to evenly distribute system executors by inserting them between each layer of the topological order
+                if (td.isDistributeSysCompEvenly()) {
+                    for (Map.Entry<String, Queue<ExecutorDetails>> entry : sysCompToExecsToSchedule.entrySet()) {
+                        Queue<ExecutorDetails> sysCompExecsToSched = entry.getValue();
+                        if (sysCompExecsToSched.size() > 0) {
+                            LOG.info("Add sys component: {}", sysCompExecsToSched.peek());
+                            execsScheduled.add(sysCompExecsToSched.poll());
+                        }
+                    }
+                }
+
             } while (flag);
         }
+        LOG.info("Scheduled executors: {}", execsScheduled);
         return execsScheduled;
     }
 
@@ -578,7 +615,7 @@ public abstract class BaseResourceAwareStrategy implements IStrategy {
     protected List<Component> getSpouts(TopologyDetails td) {
         List<Component> spouts = new ArrayList<>();
 
-        for (Component c : td.getComponents().values()) {
+        for (Component c : td.getTopoComponents().values()) {
             if (c.getType() == ComponentType.SPOUT) {
                 spouts.add(c);
             }

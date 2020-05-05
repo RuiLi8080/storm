@@ -26,10 +26,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.storm.Config;
+import org.apache.storm.daemon.StormCommon;
 import org.apache.storm.generated.Bolt;
 import org.apache.storm.generated.ComponentCommon;
 import org.apache.storm.generated.ComponentType;
 import org.apache.storm.generated.GlobalStreamId;
+import org.apache.storm.generated.InvalidTopologyException;
 import org.apache.storm.generated.SharedMemory;
 import org.apache.storm.generated.SpoutSpec;
 import org.apache.storm.generated.StormTopology;
@@ -57,6 +59,9 @@ public class TopologyDetails {
     private Double topologyWorkerMaxHeapSize;
     //topology priority
     private Integer topologyPriority;
+    private final boolean distributeSysCompEvenly;
+    private Map<String, Component> systemComponentsMap;
+    private Map<String, Component> topologyComponentsMap;
 
     public TopologyDetails(String topologyId, Map<String, Object> topologyConf, StormTopology topology, int numWorkers, String owner) {
         this(topologyId, topologyConf, topology, numWorkers, null, 0, owner);
@@ -84,6 +89,8 @@ public class TopologyDetails {
         initConfigs();
         this.launchTime = launchTime;
         this.topoName = (String) topologyConf.get(Config.TOPOLOGY_NAME);
+        this.distributeSysCompEvenly
+            = (boolean) topologyConf.getOrDefault(Config.TOPOLOGY_DISTRIBUTE_SYSTEM_COMPONENT_EVENLY, false);
     }
 
     public String getId() {
@@ -163,7 +170,7 @@ public class TopologyDetails {
         for (ExecutorDetails exec : getExecutors()) {
             if (!resourceList.containsKey(exec)) {
                 LOG.debug(
-                    "Scheduling {} {} with resource requirement as {}",
+                    "Scheduling component: {} executor: {} with resource requirement as {} {}",
                     getExecutorToComponent().get(exec),
                     exec,
                     topologyConf.get(Config.TOPOLOGY_COMPONENT_RESOURCES_ONHEAP_MEMORY_MB),
@@ -193,21 +200,43 @@ public class TopologyDetails {
     }
 
     /**
-     * Returns a representation of the non-system components of the topology graph Each Component object in the returning map is populated
+     * Returns a representation of the non-system components of the topology graph. Each Component object in the returning map is populated
      * with the list of its parents, children and execs assigned to that component.
      *
      * @return a map of components
      */
-    public Map<String, Component> getComponents() {
+    public Map<String, Component> getTopoComponents() {
+        if (topologyComponentsMap == null) {
+            topologyComponentsMap = computeComponentMap(this.topology, false);
+        }
+        return topologyComponentsMap;
+    }
+
+    /**
+     * Returns a representation of all components of the topology graph.
+     * This will be a more comprehensive graph with additional system components and links.
+     *
+     * @return a map of components
+     */
+    public Map<String, Component> getAllComponents() throws InvalidTopologyException {
+        if (systemComponentsMap == null) {
+            StormTopology sysTopo = StormCommon.systemTopology(topologyConf, topology);
+            systemComponentsMap = computeComponentMap(sysTopo, true);
+        }
+        return systemComponentsMap;
+    }
+
+    private Map<String, Component> computeComponentMap(StormTopology topology, boolean isSys) {
         Map<String, Component> ret = new HashMap<>();
 
         Map<String, SpoutSpec> spouts = topology.get_spouts();
         Map<String, Bolt> bolts = topology.get_bolts();
-        //Add in all of the components
+
+        //Add in all of the topo components and sys components
         if (spouts != null) {
             for (Map.Entry<String, SpoutSpec> entry : spouts.entrySet()) {
                 String compId = entry.getKey();
-                if (!Utils.isSystemId(compId)) {
+                if (isSys || !Utils.isSystemId(compId)) {
                     Component comp = new Component(ComponentType.SPOUT, compId, componentToExecs(compId));
                     ret.put(compId, comp);
                 }
@@ -216,7 +245,7 @@ public class TopologyDetails {
         if (bolts != null) {
             for (Map.Entry<String, Bolt> entry : bolts.entrySet()) {
                 String compId = entry.getKey();
-                if (!Utils.isSystemId(compId)) {
+                if (isSys || !Utils.isSystemId(compId)) {
                     Component comp = new Component(ComponentType.BOLT, compId, componentToExecs(compId));
                     ret.put(compId, comp);
                 }
@@ -243,6 +272,7 @@ public class TopologyDetails {
         }
         return ret;
     }
+
 
     public String getComponentFromExecutor(ExecutorDetails exec) {
         return executorToComponent.get(exec);
@@ -551,6 +581,13 @@ public class TopologyDetails {
      */
     public int getUpTime() {
         return Time.currentTimeSecs() - launchTime;
+    }
+
+    /**
+     * Should we try to schedule system components evenly for this topo.
+     */
+    public boolean isDistributeSysCompEvenly() {
+        return distributeSysCompEvenly;
     }
 
     @Override

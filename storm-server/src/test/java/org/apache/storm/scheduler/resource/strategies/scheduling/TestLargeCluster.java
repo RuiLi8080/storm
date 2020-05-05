@@ -37,7 +37,6 @@ import org.apache.storm.scheduler.resource.TestUtilsForResourceAwareScheduler;
 import org.apache.storm.scheduler.resource.normalization.NormalizedResources;
 import org.apache.storm.scheduler.resource.normalization.NormalizedResourcesExtension;
 import org.apache.storm.scheduler.resource.normalization.ResourceMetrics;
-import org.apache.storm.utils.ObjectReader;
 import org.apache.storm.utils.Time;
 import org.apache.storm.utils.Utils;
 import org.junit.Assert;
@@ -256,7 +255,7 @@ public class TestLargeCluster {
             int numWorkers = Integer.parseInt("" + conf.getOrDefault(Config.TOPOLOGY_WORKERS, "0"));
             TopologyDetails topo = new TopologyDetails(topoId, conf, stormTopology,  numWorkers,
                     execToComp, Time.currentTimeSecs(), "user");
-            topo.getComponents(); // sanity check - normally this should not fail
+            topo.getTopoComponents(); // sanity check - normally this should not fail
 
             topoDetailsList.add(topo);
         }
